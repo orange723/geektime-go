@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ""
+            archive: tar.gz
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+            archive: tar.gz
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            ext: ".exe"
+            archive: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download deps
+        run: go mod download
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          BIN_NAME="geektime-go_${GOOS}_${GOARCH}${{ matrix.ext }}"
+          go build -o "dist/${BIN_NAME}"
+
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            (cd dist && zip -9 "${BIN_NAME}.zip" "${BIN_NAME}")
+          else
+            (cd dist && tar -czf "${BIN_NAME}.tar.gz" "${BIN_NAME}")
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: geektime-go_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate release notes
+        run: |
+          PREV_TAG="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          if [ -z "${PREV_TAG}" ]; then
+            RANGE=""
+          else
+            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
+          fi
+
+          {
+            echo "## 更新内容"
+            if [ -z "${RANGE}" ]; then
+              git log --pretty=format:"- %s (%h)"
+            else
+              git log "${RANGE}" --pretty=format:"- %s (%h)"
+            fi
+            echo
+            echo "## 构建信息"
+            echo "- Go: $(go version)"
+            echo "- Tag: ${GITHUB_REF_NAME}"
+          } > release_notes.md
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+          files: dist/*
