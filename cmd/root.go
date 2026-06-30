@@ -36,14 +36,11 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "配置文件路径 (默认是 $HOME/.geektime-go.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&Debug, "debug", false, "开启调试模式，显示详细响应数据")
 
-	// 根命令的本地标志
-	rootCmd.Flags().BoolP("toggle", "t", false, "显示帮助信息")
-
 	// 设置自定义的用法提示（部分英文是 Cobra 内部硬编码的，但我们可以通过设置自定义模板来优化）
 	rootCmd.SetHelpCommand(&cobra.Command{
-		Use:    "help [命令]",
-		Short:  "显示命令的帮助信息",
-		Long:   `显示任何命令的详细说明。`,
+		Use:   "help [命令]",
+		Short: "显示命令的帮助信息",
+		Long:  `显示任何命令的详细说明。`,
 		Run: func(c *cobra.Command, args []string) {
 			cmd, _, _ := c.Root().Find(args)
 			if cmd == nil {
