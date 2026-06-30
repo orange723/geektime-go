@@ -19,7 +19,7 @@ var convertCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		dir := args[0]
-		
+
 		// 检查目录是否存在
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			fmt.Printf("错误: 目录 %s 不存在\n", dir)

@@ -23,14 +23,19 @@ var downloadCmd = &cobra.Command{
 	Long:  `获取指定极客时间课程的所有文章，并将其本地保存为原始 JSON。`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		cid := args[0]
+		cid := strings.TrimSpace(args[0])
 		cookie := viper.GetString("cookie")
 		if cookie == "" {
 			fmt.Println("错误: 未找到 Cookie。请先执行 'geektime-go login [您的Cookie]' 进行登录。")
 			return
 		}
 
-		cidInt, _ := strconv.Atoi(cid)
+		cidInt, err := strconv.Atoi(cid)
+		if err != nil {
+			fmt.Printf("错误: 课程 ID 必须是数字，收到的是 %q。请从课程详情页 URL 中获取数字 ID。\n", cid)
+			return
+		}
+
 		client := geektime.NewClient(cookie)
 		fmt.Printf("正在获取课程 ID 为 %s 的内容...\n", cid)
 
@@ -43,14 +48,13 @@ var downloadCmd = &cobra.Command{
 		courseTitle := client.ParseColumnTitle(infoJson)
 		fmt.Printf("找到课程: 【%s】\n", courseTitle)
 
-		articlesJson, err := client.GetArticles(cid)
+		articles, err := client.GetArticles(cid)
 		if err != nil {
 			fmt.Printf("获取课程文章列表失败: %v\n", err)
 			checkCookieExpiration(err)
 			return
 		}
 
-		articles := client.ParseArticles(articlesJson)
 		fmt.Printf("共包含 %d 篇文章\n", len(articles))
 
 		if testMode {
@@ -69,7 +73,7 @@ var downloadCmd = &cobra.Command{
 		for i, article := range articles {
 			title := article["title"]
 			id := article["id"]
-			
+
 			safeTitle := geektime.SanitizeFileName(title)
 			fileName := fmt.Sprintf("%02d_%s.json", i+1, safeTitle)
 			filePath := filepath.Join(outputDir, fileName)
@@ -80,7 +84,7 @@ var downloadCmd = &cobra.Command{
 			}
 
 			fmt.Printf("[%d/%d] 正在下载: %s...", i+1, len(articles), title)
-			
+
 			detail, err := client.GetArticle(id)
 			if err != nil {
 				fmt.Printf("失败: %v\n", err)
